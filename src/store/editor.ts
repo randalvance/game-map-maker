@@ -20,6 +20,7 @@ export type EditorState = {
   panY: number;
   showGrid: boolean;
   showCollisionOverlay: boolean;
+  hoveredCell: { x: number; y: number } | null;
   setTool: (tool: Tool) => void;
   setActiveTile: (i: number) => void;
   setActiveLayer: (id: string | null) => void;
@@ -27,6 +28,7 @@ export type EditorState = {
   setSelectedEntity: (id: string | null) => void;
   setZoom: (z: number) => void;
   setPan: (x: number, y: number) => void;
+  setHoveredCell: (cell: { x: number; y: number } | null) => void;
   toggleGrid: () => void;
   toggleCollisionOverlay: () => void;
 };
@@ -42,6 +44,7 @@ export const useEditor = create<EditorState>((set) => ({
   panY: 0,
   showGrid: true,
   showCollisionOverlay: false,
+  hoveredCell: null,
   setTool: (tool) => set({ tool }),
   setActiveTile: (activeTile) => set({ activeTile }),
   setActiveLayer: (activeLayerId) => set({ activeLayerId }),
@@ -49,6 +52,7 @@ export const useEditor = create<EditorState>((set) => ({
   setSelectedEntity: (selectedEntityId) => set({ selectedEntityId }),
   setZoom: (zoom) => set({ zoom }),
   setPan: (panX, panY) => set({ panX, panY }),
+  setHoveredCell: (hoveredCell) => set({ hoveredCell }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleCollisionOverlay: () =>
     set((s) => ({ showCollisionOverlay: !s.showCollisionOverlay })),

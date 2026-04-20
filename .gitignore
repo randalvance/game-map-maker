@@ -6,3 +6,6 @@ dist
 coverage
 *.tsbuildinfo
 .claude/settings.local.json
+.playwright-mcp/
+# root-level screenshots from ad-hoc browser smoke testing
+/*.png
