@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Analytics } from "@vercel/analytics/react";
 import { MapCanvas } from "@/canvas/MapCanvas";
 import { Toolbar } from "@/ui/Toolbar";
 import { StatusBar } from "@/ui/StatusBar";
@@ -22,6 +23,7 @@ export function App() {
       <AutosaveRestore>
         <Editor />
       </AutosaveRestore>
+      <Analytics />
     </ErrorBoundary>
   );
 }
