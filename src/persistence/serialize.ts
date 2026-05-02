@@ -1,10 +1,14 @@
 import {
   CURRENT_SCHEMA_VERSION,
   type MapProject,
+  type SchemaVersion,
   type TileLayer,
 } from "@/model/types";
 
 export const AUTOSAVE_KEY = "gmm:project";
+
+const UUIDV4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export class ProjectValidationError extends Error {
   constructor(message: string) {
@@ -14,7 +18,8 @@ export class ProjectValidationError extends Error {
 }
 
 export function serializeProject(project: MapProject): string {
-  return JSON.stringify(project);
+  const out: MapProject = { ...project, version: CURRENT_SCHEMA_VERSION };
+  return JSON.stringify(out);
 }
 
 export function deserializeProject(text: string): MapProject {
@@ -32,15 +37,20 @@ export function deserializeProject(text: string): MapProject {
 export function validateProject(raw: unknown): MapProject {
   if (!isObject(raw)) throw fail("root must be an object");
 
-  const version = raw.version;
-  if (typeof version !== "number" || !Number.isInteger(version) || version < 1) {
+  const versionRaw = raw.version;
+  if (
+    typeof versionRaw !== "number" ||
+    !Number.isInteger(versionRaw) ||
+    versionRaw < 1
+  ) {
     throw fail("missing or invalid version");
   }
-  if (version > CURRENT_SCHEMA_VERSION) {
+  if (versionRaw > CURRENT_SCHEMA_VERSION) {
     throw fail(
-      `project version ${version} is newer than this editor (${CURRENT_SCHEMA_VERSION}). Please update the editor.`,
+      `project version ${versionRaw} is newer than this editor (${CURRENT_SCHEMA_VERSION}). Please update the editor.`,
     );
   }
+  const version = versionRaw as SchemaVersion;
 
   const width = numericField(raw, "width");
   const height = numericField(raw, "height");
@@ -48,6 +58,7 @@ export function validateProject(raw: unknown): MapProject {
 
   const tileset = raw.tileset;
   if (!isObject(tileset)) throw fail("missing tileset");
+  validateTilesetSrc(tileset.src, version);
 
   const layers = raw.layers;
   if (!Array.isArray(layers)) throw fail("layers must be an array");
@@ -64,10 +75,28 @@ export function validateProject(raw: unknown): MapProject {
     throw fail("collision entries must all be boolean");
   }
 
+  if ("projectId" in raw && raw.projectId !== undefined) {
+    if (typeof raw.projectId !== "string" || !UUIDV4_RE.test(raw.projectId)) {
+      throw fail("projectId must be a UUIDv4 string when present");
+    }
+  }
+
   return {
     ...(raw as MapProject),
-    version: CURRENT_SCHEMA_VERSION,
+    version,
   };
+}
+
+function validateTilesetSrc(src: unknown, version: SchemaVersion): void {
+  if (typeof src !== "string") throw fail("tileset.src must be a string");
+  if (src === "") return;
+  if (src.startsWith("data:image/")) return;
+  if (version >= 2 && /^https:\/\//i.test(src)) return;
+  throw fail(
+    version === 1
+      ? "tileset.src in a v1 file must be empty or a data: URL"
+      : "tileset.src must be empty, a data: URL, or an https: URL",
+  );
 }
 
 function validateLayer(layer: unknown, width: number, height: number): asserts layer is TileLayer {

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createNewProject } from "@/model/project";
-import { EMPTY_TILE } from "@/model/types";
+import { CURRENT_SCHEMA_VERSION, EMPTY_TILE } from "@/model/types";
 import {
   ProjectValidationError,
   deserializeProject,
@@ -81,5 +81,89 @@ describe("deserialize validation", () => {
   it("rejects missing required fields", () => {
     expect(() => deserializeProject(JSON.stringify({}))).toThrow();
     expect(() => deserializeProject(JSON.stringify({ version: 1 }))).toThrow();
+  });
+});
+
+describe("schema versioning", () => {
+  it("serializeProject always emits the current schema version", () => {
+    const p = { ...createNewProject(2, 2), version: 1 as 1 };
+    const text = serializeProject(p);
+    expect(JSON.parse(text).version).toBe(CURRENT_SCHEMA_VERSION);
+  });
+
+  it("deserializeProject preserves the original version", () => {
+    const p = createNewProject(2, 2);
+    const v1Text = JSON.stringify({
+      ...p,
+      version: 1,
+      tileset: { ...p.tileset, src: "data:image/png;base64,iVBORw0K" },
+    });
+    const parsed = deserializeProject(v1Text);
+    expect(parsed.version).toBe(1);
+    expect(parsed.tileset.src).toBe("data:image/png;base64,iVBORw0K");
+  });
+
+  it("accepts a v2 file with an https tileset URL", () => {
+    const p = createNewProject(2, 2);
+    const v2Text = JSON.stringify({
+      ...p,
+      version: 2,
+      tileset: {
+        ...p.tileset,
+        src: "https://example.com/tilesets/abc.png",
+      },
+    });
+    const parsed = deserializeProject(v2Text);
+    expect(parsed.tileset.src).toBe("https://example.com/tilesets/abc.png");
+  });
+
+  it("rejects an https tileset URL in a v1 file", () => {
+    const p = createNewProject(2, 2);
+    const bad = JSON.stringify({
+      ...p,
+      version: 1,
+      tileset: { ...p.tileset, src: "https://example.com/x.png" },
+    });
+    expect(() => deserializeProject(bad)).toThrow(/v1/);
+  });
+
+  it("rejects a non-string tileset src", () => {
+    const p = createNewProject(2, 2);
+    const bad = JSON.stringify({
+      ...p,
+      tileset: { ...p.tileset, src: 12345 },
+    });
+    expect(() => deserializeProject(bad)).toThrow(/tileset\.src/);
+  });
+
+  it("preserves projectId when valid UUIDv4", () => {
+    const p = createNewProject(2, 2);
+    const id = "8e6f9c5a-1b2c-4d5e-9f0a-1b2c3d4e5f60";
+    const text = JSON.stringify({ ...p, projectId: id });
+    const parsed = deserializeProject(text);
+    expect(parsed.projectId).toBe(id);
+  });
+
+  it("rejects an invalid projectId", () => {
+    const p = createNewProject(2, 2);
+    const bad = JSON.stringify({ ...p, projectId: "not-a-uuid" });
+    expect(() => deserializeProject(bad)).toThrow(/projectId/);
+  });
+
+  it("rejects a UUID with the wrong version nibble", () => {
+    const p = createNewProject(2, 2);
+    // version-3 UUID — must reject because we require v4 specifically
+    const bad = JSON.stringify({
+      ...p,
+      projectId: "8e6f9c5a-1b2c-3d5e-9f0a-1b2c3d4e5f60",
+    });
+    expect(() => deserializeProject(bad)).toThrow(/projectId/);
+  });
+
+  it("treats absent projectId as fine", () => {
+    const p = createNewProject(2, 2);
+    const text = serializeProject(p);
+    const parsed = deserializeProject(text);
+    expect(parsed.projectId).toBeUndefined();
   });
 });

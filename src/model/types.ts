@@ -1,7 +1,8 @@
 export type TileIndex = number;
 export const EMPTY_TILE: TileIndex = -1;
 
-export const CURRENT_SCHEMA_VERSION = 1;
+export const CURRENT_SCHEMA_VERSION = 2;
+export type SchemaVersion = 1 | 2;
 
 export type TileLayer = {
   id: string;
@@ -29,7 +30,7 @@ export type TilesetMeta = {
 };
 
 export type MapProject = {
-  version: typeof CURRENT_SCHEMA_VERSION;
+  version: SchemaVersion;
   width: number;
   height: number;
   tileSize: number;
@@ -37,4 +38,5 @@ export type MapProject = {
   layers: TileLayer[];
   entities: GameObject[];
   collision: boolean[];
+  projectId?: string;
 };
