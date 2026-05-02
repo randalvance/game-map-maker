@@ -30,6 +30,21 @@ When the token is missing, the editor still works — cloud buttons just disable
 
 **Migrating v1 saves.** Project files saved before this version embedded the tileset PNG as a base64 data URL. Opening a v1 file in this build still works; the next time you save (locally or to the cloud), the tileset is uploaded to Blob and the saved file becomes v2 referencing a URL. Local Save without a configured token leaves the data URL in place — the file stays self-contained for offline use.
 
+## Save format
+
+Project files have a `version` field in their JSON root:
+
+| Version | When emitted                            | `tileset.src`                    | `projectId`                                |
+| ------- | --------------------------------------- | -------------------------------- | ------------------------------------------ |
+| 1       | Older builds; no longer emitted         | `data:image/png;base64,…` only   | absent                                     |
+| 2       | This build's Save and Save-to-Cloud     | `data:` URL **or** `https:` URL  | UUIDv4 once the project has been cloud-saved |
+
+Both versions load. The editor accepts a v1 file with an embedded data URL forever; on the next save it produces v2. A v2 file with an `https:` `tileset.src` requires network access to load the tileset image; if the URL fails (404, CORS, offline), the editor reports the failure and prompts you to re-import the tileset locally.
+
+## Manual testing
+
+See [TESTING.md](./TESTING.md) for the manual round-trip plan covering cloud Save / Open, v1→v2 migration, and the no-token degradation path.
+
 ## Architecture
 
 See `openspec/changes/add-tilemap-painter/` for the spec-driven design notes:

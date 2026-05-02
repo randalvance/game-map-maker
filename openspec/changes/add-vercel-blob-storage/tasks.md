@@ -55,13 +55,13 @@
 
 ## 8. End-to-end testing and verification
 
-- [ ] 8.1 Add an `e2e`/manual test plan to `README.md` (or a `TESTING.md`) covering: import tileset → save to cloud → reload → open from cloud round trip; v1 file with dataURL → save → on-disk file is now v2 with URL; cloud-not-configured deployment still supports local Save / Open
+- [x] 8.1 Add an `e2e`/manual test plan to `README.md` (or a `TESTING.md`) covering: import tileset → save to cloud → reload → open from cloud round trip; v1 file with dataURL → save → on-disk file is now v2 with URL; cloud-not-configured deployment still supports local Save / Open
 - [x] 8.2 Run `bun run lint`, `bun run test`, and `bun run build` clean
 - [ ] 8.3 Manually verify in `vercel dev` with a real `BLOB_READ_WRITE_TOKEN`: upload a tileset, save a project, copy the URL, reload the page, paste the URL into "Open from Cloud", confirm the project loads and the tileset renders
 - [ ] 8.4 Manually verify in `vite dev` (no token): cloud buttons disabled, tooltip correct, local Save/Open behavior unchanged from prior version
 
 ## 9. Documentation and rollout
 
-- [ ] 9.1 Document the `projectId` field, the v2 schema, and the share-link-as-auth security model in `README.md`
-- [ ] 9.2 Add a short "Migrating v1 saves" note explaining that opening a v1 file and saving in this build re-uploads the embedded tileset and produces a v2 file
+- [x] 9.1 Document the `projectId` field, the v2 schema, and the share-link-as-auth security model in `README.md`
+- [x] 9.2 Add a short "Migrating v1 saves" note explaining that opening a v1 file and saving in this build re-uploads the embedded tileset and produces a v2 file
 - [ ] 9.3 Open the PR with screenshots/recordings of the cloud Save and Open flows, the disabled-state tooltip, and a v1→v2 migration save

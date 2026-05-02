@@ -108,9 +108,6 @@ export default async function handler(
         const kind = classifyPath(pathname);
         return tokenOptionsFor(kind);
       },
-      onUploadCompleted: async () => {
-        // no-op: we don't track uploads server-side in v1
-      },
     });
     res.status(200).json(json);
   } catch (err) {

@@ -1,4 +1,3 @@
-import { upload } from "@vercel/blob/client";
 import {
   CloudStorageError,
   type BlobClient,
@@ -6,7 +5,8 @@ import {
   type ProjectId,
 } from "./types";
 
-const SIGN_URL = "/api/blob/sign";
+const PROBE_URL = "/api/blob/sign";
+const UPLOAD_URL = "/api/blob/upload";
 const RESOLVE_URL = "/api/blob/resolve";
 
 const UUIDV4 =
@@ -26,33 +26,73 @@ async function sha256Hex(blob: Blob): Promise<string> {
     .join("");
 }
 
-function classifySdkError(err: unknown): CloudStorageError {
-  if (err instanceof CloudStorageError) return err;
-  const message = err instanceof Error ? err.message : String(err);
-  if (/maximum|too large|exceeds|size/i.test(message)) {
-    return new CloudStorageError("too-large", message, { cause: err });
-  }
-  if (/forbidden|not permitted|allowed|content[-\s]?type/i.test(message)) {
-    return new CloudStorageError("forbidden-key", message, { cause: err });
-  }
-  if (/network|fetch|timeout|ENOTFOUND|ECONNREFUSED/i.test(message)) {
-    return new CloudStorageError("network", message, { cause: err });
-  }
-  if (/not[-\s]?configured|503/.test(message)) {
-    return new CloudStorageError("not-configured", message, { cause: err });
-  }
-  return new CloudStorageError("unknown", message, { cause: err });
-}
-
 export async function isCloudConfigured(): Promise<boolean> {
   if (cachedConfigured !== null) return cachedConfigured;
   try {
-    const res = await fetch(SIGN_URL, { method: "HEAD" });
+    const res = await fetch(PROBE_URL, { method: "HEAD" });
     cachedConfigured = res.ok;
   } catch {
     cachedConfigured = false;
   }
   return cachedConfigured;
+}
+
+async function uploadViaProxy(
+  pathname: string,
+  body: Blob,
+  contentType: string,
+): Promise<CloudUrl> {
+  let res: Response;
+  try {
+    res = await fetch(UPLOAD_URL, {
+      method: "POST",
+      headers: {
+        "x-blob-pathname": pathname,
+        "content-type": contentType,
+      },
+      body,
+    });
+  } catch (err) {
+    throw new CloudStorageError(
+      "network",
+      `Could not reach upload endpoint: ${(err as Error).message}`,
+      { cause: err },
+    );
+  }
+  if (res.status === 503) {
+    throw new CloudStorageError(
+      "not-configured",
+      "Cloud storage isn't configured for this deployment",
+    );
+  }
+  if (res.status === 413) {
+    const body = (await safeJson(res)) ?? {};
+    throw new CloudStorageError(
+      "too-large",
+      body.message ?? "Upload exceeds size limit",
+    );
+  }
+  if (!res.ok) {
+    const body = (await safeJson(res)) ?? {};
+    const kind = (body.kind as CloudStorageError["kind"]) ?? "unknown";
+    throw new CloudStorageError(kind, body.message ?? `Upload failed: ${res.status}`);
+  }
+  const data = (await res.json()) as { url?: string };
+  if (!data.url) {
+    throw new CloudStorageError(
+      "unknown",
+      "Upload endpoint returned no URL",
+    );
+  }
+  return data.url;
+}
+
+async function safeJson(res: Response): Promise<{ kind?: string; message?: string } | null> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
 export async function uploadTilesetImage(blob: Blob): Promise<CloudUrl> {
@@ -63,16 +103,7 @@ export async function uploadTilesetImage(blob: Blob): Promise<CloudUrl> {
     );
   }
   const hash = await sha256Hex(blob);
-  try {
-    const result = await upload(`tilesets/${hash}.png`, blob, {
-      access: "public",
-      handleUploadUrl: SIGN_URL,
-      contentType: "image/png",
-    });
-    return result.url;
-  } catch (err) {
-    throw classifySdkError(err);
-  }
+  return uploadViaProxy(`tilesets/${hash}.png`, blob, "image/png");
 }
 
 export async function uploadProjectJson(
@@ -86,16 +117,7 @@ export async function uploadProjectJson(
     );
   }
   const blob = new Blob([json], { type: "application/json" });
-  try {
-    const result = await upload(`projects/${projectId}.json`, blob, {
-      access: "public",
-      handleUploadUrl: SIGN_URL,
-      contentType: "application/json",
-    });
-    return result.url;
-  } catch (err) {
-    throw classifySdkError(err);
-  }
+  return uploadViaProxy(`projects/${projectId}.json`, blob, "application/json");
 }
 
 export function extractProjectId(input: string): string | null {

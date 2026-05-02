@@ -1,10 +1,13 @@
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type MockInstance,
+} from "vitest";
 
-vi.mock("@vercel/blob/client", () => ({
-  upload: vi.fn(),
-}));
-
-import { upload } from "@vercel/blob/client";
 import {
   _resetCloudConfiguredCache,
   extractProjectId,
@@ -55,25 +58,22 @@ describe("isCloudConfigured", () => {
   });
 });
 
-describe("uploadTilesetImage", () => {
-  it("uploads a PNG and returns the public URL", async () => {
+describe("uploadTilesetImage (via /api/blob/upload proxy)", () => {
+  it("POSTs to /api/blob/upload with the right headers and returns the URL", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ url: TILESET_URL }), { status: 200 }),
+    );
     const blob = new Blob([new Uint8Array([1, 2, 3, 4])], { type: "image/png" });
-    vi.mocked(upload).mockResolvedValueOnce({
-      url: TILESET_URL,
-      pathname: "tilesets/abc.png",
-      contentType: "image/png",
-      contentDisposition: "inline",
-    } as never);
+
     const url = await uploadTilesetImage(blob);
     expect(url).toBe(TILESET_URL);
 
-    const call = vi.mocked(upload).mock.calls[0];
-    expect(call[0]).toMatch(/^tilesets\/[0-9a-f]{64}\.png$/);
-    expect(call[2]).toMatchObject({
-      access: "public",
-      handleUploadUrl: "/api/blob/sign",
-      contentType: "image/png",
-    });
+    const [calledUrl, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe("/api/blob/upload");
+    expect(init.method).toBe("POST");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("image/png");
+    expect(headers["x-blob-pathname"]).toMatch(/^tilesets\/[0-9a-f]{64}\.png$/);
   });
 
   it("rejects non-PNG blobs with forbidden-key", async () => {
@@ -81,70 +81,84 @@ describe("uploadTilesetImage", () => {
     await expect(uploadTilesetImage(blob)).rejects.toMatchObject({
       kind: "forbidden-key",
     });
-    expect(upload).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 
   it("identical blob content yields identical pathname", async () => {
+    fetchSpy.mockImplementation(
+      async () => new Response(JSON.stringify({ url: TILESET_URL }), { status: 200 }),
+    );
     const bytes = new Uint8Array([10, 20, 30, 40]);
     const blob1 = new Blob([bytes], { type: "image/png" });
     const blob2 = new Blob([bytes], { type: "image/png" });
-    vi.mocked(upload).mockResolvedValue({
-      url: TILESET_URL,
-      pathname: "x",
-      contentType: "image/png",
-      contentDisposition: "inline",
-    } as never);
     await uploadTilesetImage(blob1);
     await uploadTilesetImage(blob2);
-    const path1 = vi.mocked(upload).mock.calls[0][0];
-    const path2 = vi.mocked(upload).mock.calls[1][0];
-    expect(path1).toBe(path2);
+    const headers1 = (fetchSpy.mock.calls[0][1] as RequestInit).headers as Record<string, string>;
+    const headers2 = (fetchSpy.mock.calls[1][1] as RequestInit).headers as Record<string, string>;
+    expect(headers1["x-blob-pathname"]).toBe(headers2["x-blob-pathname"]);
   });
 
-  it("classifies size errors as too-large", async () => {
-    const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
-    vi.mocked(upload).mockRejectedValueOnce(
-      new Error("Upload exceeds maximum size 10485760"),
+  it("maps 413 responses to too-large", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ kind: "too-large", message: "exceeds 10 MB" }), {
+        status: 413,
+      }),
     );
+    const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
     await expect(uploadTilesetImage(blob)).rejects.toMatchObject({
       kind: "too-large",
     });
   });
 
-  it("classifies forbidden-pathname errors as forbidden-key", async () => {
+  it("maps 503 responses to not-configured", async () => {
+    fetchSpy.mockResolvedValueOnce(new Response(null, { status: 503 }));
     const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
-    vi.mocked(upload).mockRejectedValueOnce(
-      new Error("pathname not permitted"),
+    await expect(uploadTilesetImage(blob)).rejects.toMatchObject({
+      kind: "not-configured",
+    });
+  });
+
+  it("maps 400 responses to forbidden-key by reading the kind from the body", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({ kind: "forbidden-key", message: "bad pathname" }),
+        { status: 400 },
+      ),
     );
+    const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
     await expect(uploadTilesetImage(blob)).rejects.toMatchObject({
       kind: "forbidden-key",
     });
   });
-});
 
-describe("uploadProjectJson", () => {
-  it("uploads JSON to projects/<id>.json", async () => {
-    vi.mocked(upload).mockResolvedValueOnce({
-      url: PROJECT_URL,
-      pathname: `projects/${VALID_UUID}.json`,
-      contentType: "application/json",
-      contentDisposition: "inline",
-    } as never);
-    const url = await uploadProjectJson("{}", VALID_UUID);
-    expect(url).toBe(PROJECT_URL);
-    const call = vi.mocked(upload).mock.calls[0];
-    expect(call[0]).toBe(`projects/${VALID_UUID}.json`);
-    expect(call[2]).toMatchObject({
-      access: "public",
-      contentType: "application/json",
+  it("network errors surface as kind=network", async () => {
+    fetchSpy.mockRejectedValueOnce(new TypeError("connection refused"));
+    const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
+    await expect(uploadTilesetImage(blob)).rejects.toMatchObject({
+      kind: "network",
     });
   });
+});
 
-  it("rejects a non-UUIDv4 projectId before calling upload", async () => {
+describe("uploadProjectJson (via /api/blob/upload proxy)", () => {
+  it("POSTs to /api/blob/upload with projects/<id>.json pathname", async () => {
+    fetchSpy.mockResolvedValueOnce(
+      new Response(JSON.stringify({ url: PROJECT_URL }), { status: 200 }),
+    );
+    const url = await uploadProjectJson("{}", VALID_UUID);
+    expect(url).toBe(PROJECT_URL);
+    const [calledUrl, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
+    expect(calledUrl).toBe("/api/blob/upload");
+    const headers = init.headers as Record<string, string>;
+    expect(headers["content-type"]).toBe("application/json");
+    expect(headers["x-blob-pathname"]).toBe(`projects/${VALID_UUID}.json`);
+  });
+
+  it("rejects a non-UUIDv4 projectId before calling fetch", async () => {
     await expect(uploadProjectJson("{}", "not-a-uuid")).rejects.toMatchObject({
       kind: "forbidden-key",
     });
-    expect(upload).not.toHaveBeenCalled();
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
 
