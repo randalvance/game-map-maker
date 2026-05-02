@@ -113,16 +113,12 @@ describe("POST with disallowed pathname", () => {
   });
 
   it("returns 400 forbidden-key when handleUpload calls into onBeforeGenerateToken with bad pathname", async () => {
-    let captured: ((p: string) => Promise<unknown>) | null = null;
+    let invokedValidator = false;
     vi.mocked(handleUpload).mockImplementation(async (opts) => {
-      captured = opts.onBeforeGenerateToken;
+      invokedValidator = true;
       // Simulate the SDK invoking the validator with a bad pathname.
-      try {
-        await opts.onBeforeGenerateToken("not-allowed/file.png", null, false);
-        return { type: "blob.generate-client-token" } as never;
-      } catch (e) {
-        throw e;
-      }
+      await opts.onBeforeGenerateToken("not-allowed/file.png", null, false);
+      return { type: "blob.generate-client-token" } as never;
     });
 
     const res = makeRes();
@@ -130,7 +126,7 @@ describe("POST with disallowed pathname", () => {
       makeReq("POST", { type: "blob.generate-client-token", payload: {} }),
       res as unknown as VercelResponse,
     );
-    expect(captured).not.toBeNull();
+    expect(invokedValidator).toBe(true);
     expect(res.statusCode).toBe(400);
     expect(res.body).toMatchObject({ kind: "forbidden-key" });
   });

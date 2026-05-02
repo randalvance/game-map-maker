@@ -23,12 +23,12 @@
 
 ## 4. Blob client wrapper
 
-- [ ] 4.1 Create `src/storage/types.ts` defining `CloudStorageError` (with the five `kind` variants) and the public function signatures from D5
-- [ ] 4.2 Create `src/storage/blobClient.ts` implementing `uploadTilesetImage(blob)`: SHA-256 the blob via `crypto.subtle.digest`, hex-encode, call `upload()` from `@vercel/blob/client` with `pathname: 'tilesets/<hash>.png'` and `handleUploadUrl: '/api/blob/sign'`, return the resulting URL
-- [ ] 4.3 Implement `uploadProjectJson(json, projectId)` and `fetchProjectJson(projectId)`; for the fetch, use `fetch()` against the canonical Blob public URL pattern (or a thin server route that resolves the URL given an ID — pick whichever is simplest and document the choice)
-- [ ] 4.4 Implement `isCloudConfigured()` with a HEAD probe against `/api/blob/sign`; cache the boolean result for the rest of the session
-- [ ] 4.5 Wrap all SDK errors in `CloudStorageError` with the appropriate `kind`; preserve original error as `cause`
-- [ ] 4.6 Add unit tests with `fetch` mocked: each function maps responses to the right behavior; size-limit and pathname errors surface with correct `kind`; HEAD probe caching only calls the network once per session
+- [x] 4.1 Create `src/storage/types.ts` defining `CloudStorageError` (with the five `kind` variants) and the public function signatures from D5
+- [x] 4.2 Create `src/storage/blobClient.ts` implementing `uploadTilesetImage(blob)`: SHA-256 the blob via `crypto.subtle.digest`, hex-encode, call `upload()` from `@vercel/blob/client` with `pathname: 'tilesets/<hash>.png'` and `handleUploadUrl: '/api/blob/sign'`, return the resulting URL
+- [x] 4.3 Implement `uploadProjectJson(json, projectId)` and `fetchProjectJson(projectId)`; for the fetch, use `fetch()` against the canonical Blob public URL pattern (or a thin server route that resolves the URL given an ID — pick whichever is simplest and document the choice). **Decision:** added `api/blob/resolve.ts` (uses `head()` server-side) so the client doesn't need a Blob-base-URL env var.
+- [x] 4.4 Implement `isCloudConfigured()` with a HEAD probe against `/api/blob/sign`; cache the boolean result for the rest of the session
+- [x] 4.5 Wrap all SDK errors in `CloudStorageError` with the appropriate `kind`; preserve original error as `cause`
+- [x] 4.6 Add unit tests with `fetch` mocked: each function maps responses to the right behavior; size-limit and pathname errors surface with correct `kind`; HEAD probe caching only calls the network once per session
 
 ## 5. Tileset loading: URL or Blob
 

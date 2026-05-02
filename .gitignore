@@ -9,3 +9,5 @@ coverage
 .playwright-mcp/
 # root-level screenshots from ad-hoc browser smoke testing
 /*.png
+.vercel
+.env*.local
