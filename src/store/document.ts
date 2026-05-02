@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { v4 as uuidv4 } from "uuid";
 import { createNewProject } from "@/model/project";
 import type { MapProject, TileLayer } from "@/model/types";
 
@@ -10,9 +11,10 @@ type DocumentState = {
   markClean: () => void;
   markDirty: () => void;
   updateLayer: (layerId: string, updater: (layer: TileLayer) => TileLayer) => void;
+  ensureProjectId: () => string;
 };
 
-export const useDocument = create<DocumentState>((set) => ({
+export const useDocument = create<DocumentState>((set, get) => ({
   project: createNewProject(),
   dirty: false,
   setProject: (project) => set({ project, dirty: true }),
@@ -27,6 +29,14 @@ export const useDocument = create<DocumentState>((set) => ({
       },
       dirty: true,
     })),
+  ensureProjectId: () => {
+    const { project, dirty } = get();
+    if (project.projectId) return project.projectId;
+    const id = uuidv4();
+    // Minting an ID is editorial bookkeeping, not user data — preserve dirty as-is.
+    set({ project: { ...project, projectId: id }, dirty });
+    return id;
+  },
 }));
 
 export const documentActions = {
@@ -34,4 +44,5 @@ export const documentActions = {
   setProject: (p: MapProject) => useDocument.getState().setProject(p),
   replaceProject: (p: MapProject) => useDocument.getState().replaceProject(p),
   markClean: () => useDocument.getState().markClean(),
+  ensureProjectId: () => useDocument.getState().ensureProjectId(),
 };

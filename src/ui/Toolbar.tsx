@@ -1,10 +1,19 @@
+import { useEffect, useRef, useState } from "react";
 import { useDocument } from "@/store/document";
 import { useEditor, type Tool } from "@/store/editor";
 import { canRedo, canUndo, redo, undo } from "@/commands/history";
 import type { MapProject } from "@/model/types";
 import { downloadProject, readProjectFile } from "@/persistence/file";
 import { clearHistory } from "@/commands/history";
-import { useRef } from "react";
+import { serializeProject } from "@/persistence/serialize";
+import {
+  isCloudConfigured,
+  uploadProjectJson,
+} from "@/storage/blobClient";
+import { CloudStorageError } from "@/storage/types";
+import { migrateTilesetIfNeeded } from "@/storage/migrate";
+import { OpenFromCloudDialog } from "./OpenFromCloudDialog";
+import { CloudSaveToast } from "./CloudSaveToast";
 
 type ToolbarProps = {
   onLoadTileset: () => void;
@@ -28,6 +37,21 @@ export function Toolbar({ onLoadTileset, onNewMap }: ToolbarProps) {
   const toggleCollisionOverlay = useEditor((s) => s.toggleCollisionOverlay);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
+  const [cloudReady, setCloudReady] = useState<boolean | null>(null);
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [openCloudOpen, setOpenCloudOpen] = useState(false);
+  const [savedUrl, setSavedUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    isCloudConfigured().then((ready) => {
+      if (!cancelled) setCloudReady(ready);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const handleSave = () => {
     const project = useDocument.getState().project;
     downloadProject(project, "map.json");
@@ -37,6 +61,34 @@ export function Toolbar({ onLoadTileset, onNewMap }: ToolbarProps) {
   const handleExport = () => {
     const project = useDocument.getState().project;
     downloadProject(project, "map.export.json");
+  };
+
+  const handleSaveToCloud = async () => {
+    if (cloudBusy) return;
+    setCloudBusy(true);
+    try {
+      const initial = useDocument.getState().project;
+      const migrated = await migrateTilesetIfNeeded(initial);
+      // Persist any tileset src rewrite back into the document so a subsequent
+      // local Save sees the URL too. This is a no-op if migration didn't run.
+      if (migrated !== initial) {
+        useDocument.setState({ project: migrated });
+      }
+      const projectId = useDocument.getState().ensureProjectId();
+      const projectForSave = {
+        ...useDocument.getState().project,
+        projectId,
+      };
+      const json = serializeProject(projectForSave);
+      const url = await uploadProjectJson(json, projectId);
+      useDocument.getState().markClean();
+      setSavedUrl(url);
+    } catch (e) {
+      const msg = e instanceof CloudStorageError ? messageForError(e) : (e as Error).message;
+      alert(`Save to cloud failed: ${msg}`);
+    } finally {
+      setCloudBusy(false);
+    }
   };
 
   const handleOpenClick = () => fileRef.current?.click();
@@ -53,6 +105,13 @@ export function Toolbar({ onLoadTileset, onNewMap }: ToolbarProps) {
       alert(`Failed to open project: ${(e as Error).message}`);
     }
   };
+
+  const cloudTooltip =
+    cloudReady === false
+      ? "Cloud storage isn't configured for this deployment"
+      : cloudReady === null
+        ? "Checking cloud storage…"
+        : undefined;
 
   return (
     <div className="toolbar">
@@ -76,6 +135,29 @@ export function Toolbar({ onLoadTileset, onNewMap }: ToolbarProps) {
           hidden
           onChange={handleOpenFile}
         />
+      </div>
+
+      <div className="toolbar__divider" />
+
+      <div className="toolbar__group">
+        <button
+          type="button"
+          className="btn"
+          onClick={handleSaveToCloud}
+          disabled={cloudReady !== true || cloudBusy}
+          title={cloudTooltip}
+        >
+          {cloudBusy ? "Saving…" : "Save to Cloud"}
+        </button>
+        <button
+          type="button"
+          className="btn"
+          onClick={() => setOpenCloudOpen(true)}
+          disabled={cloudReady !== true}
+          title={cloudTooltip}
+        >
+          Open from Cloud
+        </button>
       </div>
 
       <div className="toolbar__divider" />
@@ -128,6 +210,32 @@ export function Toolbar({ onLoadTileset, onNewMap }: ToolbarProps) {
           Redo
         </button>
       </div>
+
+      <OpenFromCloudDialog
+        open={openCloudOpen}
+        onClose={() => setOpenCloudOpen(false)}
+      />
+      {savedUrl && (
+        <CloudSaveToast url={savedUrl} onDismiss={() => setSavedUrl(null)} />
+      )}
     </div>
   );
+}
+
+function messageForError(err: CloudStorageError): string {
+  switch (err.kind) {
+    case "not-configured":
+      return "Cloud storage isn't configured for this deployment.";
+    case "not-found":
+      return "Project not found.";
+    case "forbidden-key":
+      return err.message;
+    case "network":
+      return `Network error: ${err.message}`;
+    case "too-large":
+      return `Project is too large to upload: ${err.message}`;
+    case "unknown":
+    default:
+      return err.message;
+  }
 }

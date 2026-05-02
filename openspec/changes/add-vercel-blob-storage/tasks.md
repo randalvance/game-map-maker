@@ -32,31 +32,31 @@
 
 ## 5. Tileset loading: URL or Blob
 
-- [ ] 5.1 Refactor `src/tileset/loadTileset.ts` so the input is `Blob | string` (URL); when given a URL, skip `blobToDataUrl` and pass the URL directly to `Assets.load({ src, loadParser: 'loadTextures', crossOrigin: 'anonymous' })`
-- [ ] 5.2 In the import flow (called from the toolbar's "Load Tileset"), after a successful slice, also call `uploadTilesetImage(blob)` when cloud is configured and store the returned URL in `TilesetMeta.src`; otherwise keep the dataURL behavior
-- [ ] 5.3 Surface a clear error message when an `https:` tileset URL fails to fetch (CORS, 404, network) — distinct from "invalid PNG" — and prompt the user to re-import a tileset
-- [ ] 5.4 Add unit tests for both branches of the loader (mocked PixiJS `Assets`); verify `crossOrigin: 'anonymous'` is set on the URL path
+- [x] 5.1 Refactor `src/tileset/loadTileset.ts` so the input is `Blob | string` (URL); when given a URL, skip `blobToDataUrl` and pass the URL directly to `Assets.load({ src, loadParser: 'loadTextures', crossOrigin: 'anonymous' })`
+- [x] 5.2 In the import flow (called from the toolbar's "Load Tileset"), after a successful slice, also call `uploadTilesetImage(blob)` when cloud is configured and store the returned URL in `TilesetMeta.src`; otherwise keep the dataURL behavior
+- [x] 5.3 Surface a clear error message when an `https:` tileset URL fails to fetch (CORS, 404, network) — distinct from "invalid PNG" — and prompt the user to re-import a tileset
+- [x] 5.4 Add unit tests for both branches of the loader (mocked PixiJS `Assets`); verify `crossOrigin: 'anonymous'` is set on the URL path
 
 ## 6. Document store: projectId + lazy migration
 
-- [ ] 6.1 Update `useDocument` to track `projectId: string | undefined` as part of the persisted document state; ensure autosave/restore round-trips it
-- [ ] 6.2 Add a helper `ensureProjectId()` on the document store that mints a UUIDv4 when not present and returns the current ID
-- [ ] 6.3 Add a `migrateTilesetIfNeeded()` step invoked from the Save and Save-to-Cloud flows: if `tileset.src` starts with `data:` and cloud is configured, decode to Blob, call `uploadTilesetImage`, and replace `tileset.src` with the URL on the document — all before serialization
-- [ ] 6.4 Add unit tests for the migration helper covering: dataURL → upload → URL replacement; cloud-not-configured leaves dataURL untouched; upload failure leaves the document state unchanged
+- [x] 6.1 Update `useDocument` to track `projectId: string | undefined` as part of the persisted document state; ensure autosave/restore round-trips it
+- [x] 6.2 Add a helper `ensureProjectId()` on the document store that mints a UUIDv4 when not present and returns the current ID
+- [x] 6.3 Add a `migrateTilesetIfNeeded()` step invoked from the Save and Save-to-Cloud flows: if `tileset.src` starts with `data:` and cloud is configured, decode to Blob, call `uploadTilesetImage`, and replace `tileset.src` with the URL on the document — all before serialization
+- [x] 6.4 Add unit tests for the migration helper covering: dataURL → upload → URL replacement; cloud-not-configured leaves dataURL untouched; upload failure leaves the document state unchanged
 
 ## 7. Toolbar wiring (Save / Open)
 
-- [ ] 7.1 Add "Save to Cloud" button to the toolbar; on click, run migration (§6.3), `serializeProject`, `uploadProjectJson(json, ensureProjectId())`, then `markClean` and show a toast with the project URL plus copy-to-clipboard action
-- [ ] 7.2 Disable the "Save to Cloud" button when `isCloudConfigured()` is false; tooltip explains why
-- [ ] 7.3 Add "Open from Cloud" button; clicking opens a small modal with one input that accepts either a UUID or a full Blob URL — extract the UUID with a regex, validate UUIDv4 shape, then `fetchProjectJson` → validator → `replaceProject` → `clearHistory`
-- [ ] 7.4 If the active document is dirty when "Open from Cloud" is invoked, show the existing unsaved-changes confirmation before fetching
-- [ ] 7.5 On successful Open from Cloud, set `projectId` on the in-memory document so the next Save-to-Cloud overwrites the same blob
-- [ ] 7.6 Surface 404 ("No project found with that ID") and other `CloudStorageError` kinds as targeted toast messages, never as a stuck spinner
+- [x] 7.1 Add "Save to Cloud" button to the toolbar; on click, run migration (§6.3), `serializeProject`, `uploadProjectJson(json, ensureProjectId())`, then `markClean` and show a toast with the project URL plus copy-to-clipboard action
+- [x] 7.2 Disable the "Save to Cloud" button when `isCloudConfigured()` is false; tooltip explains why
+- [x] 7.3 Add "Open from Cloud" button; clicking opens a small modal with one input that accepts either a UUID or a full Blob URL — extract the UUID with a regex, validate UUIDv4 shape, then `fetchProjectJson` → validator → `replaceProject` → `clearHistory`
+- [x] 7.4 If the active document is dirty when "Open from Cloud" is invoked, show the existing unsaved-changes confirmation before fetching
+- [x] 7.5 On successful Open from Cloud, set `projectId` on the in-memory document so the next Save-to-Cloud overwrites the same blob
+- [x] 7.6 Surface 404 ("No project found with that ID") and other `CloudStorageError` kinds as targeted toast messages, never as a stuck spinner
 
 ## 8. End-to-end testing and verification
 
 - [ ] 8.1 Add an `e2e`/manual test plan to `README.md` (or a `TESTING.md`) covering: import tileset → save to cloud → reload → open from cloud round trip; v1 file with dataURL → save → on-disk file is now v2 with URL; cloud-not-configured deployment still supports local Save / Open
-- [ ] 8.2 Run `bun run lint`, `bun run test`, and `bun run build` clean
+- [x] 8.2 Run `bun run lint`, `bun run test`, and `bun run build` clean
 - [ ] 8.3 Manually verify in `vercel dev` with a real `BLOB_READ_WRITE_TOKEN`: upload a tileset, save a project, copy the URL, reload the page, paste the URL into "Open from Cloud", confirm the project loads and the tileset renders
 - [ ] 8.4 Manually verify in `vite dev` (no token): cloud buttons disabled, tooltip correct, local Save/Open behavior unchanged from prior version
 

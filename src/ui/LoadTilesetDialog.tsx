@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
-import { loadTilesetFromBlob } from "@/tileset/loadTileset";
+import { loadTileset } from "@/tileset/loadTileset";
 import { setLoadedTileset } from "@/canvas/tilesetTextures";
 import { useDocument } from "@/store/document";
+import { isCloudConfigured, uploadTilesetImage } from "@/storage/blobClient";
 
 type Props = {
   open: boolean;
@@ -29,18 +30,31 @@ export function LoadTilesetDialog({ open, onClose }: Props) {
     }
     setBusy(true);
     try {
-      const loaded = await loadTilesetFromBlob(file, {
+      const loaded = await loadTileset(file, {
         tileWidth,
         tileHeight,
         margin,
         spacing,
       });
+
+      let finalSrc = loaded.meta.src;
+      if (await isCloudConfigured()) {
+        try {
+          finalSrc = await uploadTilesetImage(file);
+        } catch (uploadErr) {
+          console.warn(
+            "Cloud tileset upload failed; falling back to embedded data URL.",
+            uploadErr,
+          );
+        }
+      }
+
       setLoadedTileset(loaded);
       const project = useDocument.getState().project;
       useDocument.getState().setProject({
         ...project,
         tileSize: tileWidth,
-        tileset: loaded.meta,
+        tileset: { ...loaded.meta, src: finalSrc },
       });
       onClose();
     } catch (e) {

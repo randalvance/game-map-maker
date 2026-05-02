@@ -380,6 +380,39 @@ body,
   font-size: 12px;
   color: var(--fg);
   z-index: 20;
+  max-width: 420px;
+}
+
+.toast--success {
+  border-color: var(--accent);
+}
+
+.toast__title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.toast__row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.toast__url {
+  flex: 1;
+  min-width: 0;
+  background: var(--bg-1);
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+}
+
+.btn--small {
+  padding: 2px 8px;
+  font-size: 11px;
 }
 
 /* ─── Error boundary ─────────────────────────────────────────── */
